@@ -4,6 +4,21 @@
 EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
-  m_Scenes: []
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_Menu.unity
+    guid: 9475badc27d0a8a49986d64b9b5be8bd
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_TCP_Create.unity
+    guid: 723acfd21f945c44abacce935ffa85ef
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_TCP_Join.unity
+    guid: 901742019751d984590fd6672f0ec0d5
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_UDP_Create.unity
+    guid: 3669273ed194de04798a15e4b54edc9c
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_UDP_Join.unity
+    guid: 4d2cfc52803671141896a9052139f29a
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0
