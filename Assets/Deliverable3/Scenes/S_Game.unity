@@ -905,6 +905,13 @@ MonoBehaviour:
   sendInterval: 0.05
   smoothing: 15
   playerPrefab: {fileID: 3683319405877980647, guid: 517f6b340807f6343ac64018f2c0d5a8, type: 3}
+  playerMaterials:
+  - {fileID: 2100000, guid: 1673b09352e443c478510ec7af90c396, type: 2}
+  - {fileID: 2100000, guid: a3492a4bbcddc964cacdcad15c091a98, type: 2}
+  - {fileID: 2100000, guid: 2fc69534e3725784692c4a76209b10f7, type: 2}
+  - {fileID: 2100000, guid: 85248bfb86e1cc941b83fea71df66acc, type: 2}
+  - {fileID: 2100000, guid: 11b9f1452ff5e0145add8d657566e431, type: 2}
+  - {fileID: 2100000, guid: af9f5b5e2e62f9947a186534fc025c96, type: 2}
 --- !u!4 &1621008364
 Transform:
   m_ObjectHideFlags: 0

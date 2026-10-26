@@ -15,8 +15,16 @@ public class NetworkGame : MonoBehaviour
     public float smoothing = 15f;
 
     public GameObject playerPrefab;
+    public Material[] playerMaterials;   // one color per player id
 
     const float GroundY = 1f;   // the capsule is 2 units tall and its pivot is in the middle
+
+    // First the 4 corners, then the middle of each side
+    static readonly Vector2[] Spawns =
+    {
+        new Vector2(-7f, -7f), new Vector2(7f, 7f), new Vector2(7f, -7f), new Vector2(-7f, 7f),
+        new Vector2(0f, -7f), new Vector2(0f, 7f), new Vector2(-7f, 0f), new Vector2(7f, 0f),
+    };
 
     LobbyUDPServer m_server;
     LobbyUDPClient m_client;
@@ -55,16 +63,24 @@ public class NetworkGame : MonoBehaviour
         for (int id = 0; id < m_names.Count; id++) SpawnPlayer(id);
     }
 
-    // One next to the other, along the x axis
     Vector3 SpawnPosition(int id)
     {
-        return new Vector3(id * 2f - 3f, GroundY, 0f);
+        Vector2 spawn = Spawns[id % Spawns.Length];
+        return new Vector3(spawn.x, GroundY, spawn.y);
+    }
+
+    Quaternion SpawnRotation(int id)
+    {
+        Vector3 toCenter = -SpawnPosition(id);
+        toCenter.y = 0f;
+        return Quaternion.LookRotation(toCenter);
     }
 
     void SpawnPlayer(int id)
     {
-        GameObject player = Instantiate(playerPrefab, SpawnPosition(id), Quaternion.identity);
+        GameObject player = Instantiate(playerPrefab, SpawnPosition(id), SpawnRotation(id));
         player.name = "Player " + id + " " + m_names[id];
+        player.GetComponent<Renderer>().sharedMaterial = playerMaterials[id % playerMaterials.Length];
         m_players[id] = player.transform;
     }
 
