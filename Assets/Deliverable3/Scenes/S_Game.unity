@@ -903,6 +903,7 @@ MonoBehaviour:
   gravity: 20
   arenaSize: 9
   sendInterval: 0.05
+  smoothing: 15
   playerPrefab: {fileID: 3683319405877980647, guid: 517f6b340807f6343ac64018f2c0d5a8, type: 3}
 --- !u!4 &1621008364
 Transform:

@@ -12,6 +12,7 @@ public class NetworkGame : MonoBehaviour
     public float gravity = 20f;
     public float arenaSize = 9f;
     public float sendInterval = 0.05f;   // 20 messages a second, not every frame
+    public float smoothing = 15f;
 
     public GameObject playerPrefab;
 
@@ -23,6 +24,8 @@ public class NetworkGame : MonoBehaviour
     int m_localId;
 
     readonly Dictionary<int, Transform> m_players = new Dictionary<int, Transform>();
+    readonly Dictionary<int, Vector3> m_targetPositions = new Dictionary<int, Vector3>();
+    readonly Dictionary<int, float> m_targetRotations = new Dictionary<int, float>();
     float m_verticalSpeed;
     float m_sendTimer;
 
@@ -70,6 +73,7 @@ public class NetworkGame : MonoBehaviour
         if (m_names == null) return;
 
         if (m_players.ContainsKey(m_localId)) MoveLocalPlayer();
+        MoveRemotePlayers();
 
         m_sendTimer += Time.deltaTime;
         if (m_sendTimer >= sendInterval)
@@ -115,6 +119,19 @@ public class NetworkGame : MonoBehaviour
         player.position = position;
     }
 
+    // We only get 20 positions a second, so we move towards the last one instead of teleporting.
+    // A big jump means the player went back to its spawn, then we teleport too
+    void MoveRemotePlayers()
+    {
+        foreach (int id in m_targetPositions.Keys)
+        {
+            Transform player = m_players[id];
+            if (Vector3.Distance(player.position, m_targetPositions[id]) > 4f) player.position = m_targetPositions[id];
+            else player.position = Vector3.Lerp(player.position, m_targetPositions[id], smoothing * Time.deltaTime);
+            player.rotation = Quaternion.Slerp(player.rotation, Quaternion.Euler(0f, m_targetRotations[id], 0f), smoothing * Time.deltaTime);
+        }
+    }
+
     void SendLocalPlayer()
     {
         if (!m_players.ContainsKey(m_localId)) return;
@@ -136,8 +153,7 @@ public class NetworkGame : MonoBehaviour
     {
         if (dto.objectId == m_localId || !m_players.ContainsKey(dto.objectId)) return;
 
-        Transform player = m_players[dto.objectId];
-        player.position = new Vector3(dto.x, dto.y, dto.z);
-        player.rotation = Quaternion.Euler(0f, dto.rotationY, 0f);
+        m_targetPositions[dto.objectId] = new Vector3(dto.x, dto.y, dto.z);
+        m_targetRotations[dto.objectId] = dto.rotationY;
     }
 }
