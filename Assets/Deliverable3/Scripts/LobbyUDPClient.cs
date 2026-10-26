@@ -283,8 +283,10 @@ public class LobbyUDPClient : MonoBehaviour
 
         string text;
         TransformDTO dto;
+        ShootDTO shoot;
+        ScoreDTO score;
         MsgType msgType;
-        try { msgType = Messages.Read(data, out text, out dto); }
+        try { msgType = Messages.Read(data, out text, out dto, out shoot, out score); }
         catch (Exception e)
         {
             Log("[CLIENT] Bad message: " + e.Message);

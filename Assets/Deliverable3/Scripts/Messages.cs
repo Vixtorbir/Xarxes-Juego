@@ -4,6 +4,8 @@ using System.IO;
 // Every message starts with one MsgType byte, then the content:
 //   Text       01 | string                                   lobby and chat
 //   Transform  02 | int id, float x, y, z, rotationY          21 bytes
+//   Shoot      03 | int id, float x, y, z, dirX, dirZ         25 bytes
+//   Score      04 | int round, int winner, points, deaths     lists: count, then each one
 public static class Messages
 {
     public static byte[] Text(string text)
@@ -20,6 +22,16 @@ public static class Messages
         return AddType(MsgType.Transform, Serializer.Serialize(dto));
     }
 
+    public static byte[] Shoot(ShootDTO dto)
+    {
+        return AddType(MsgType.Shoot, Serializer.Serialize(dto));
+    }
+
+    public static byte[] Score(ScoreDTO dto)
+    {
+        return AddType(MsgType.Score, Serializer.Serialize(dto));
+    }
+
     static byte[] AddType(MsgType type, byte[] body)
     {
         byte[] message = new byte[1 + body.Length];
@@ -29,10 +41,12 @@ public static class Messages
     }
 
     // Fills the out that matches the type. Throws if the message is wrong, the caller drops it
-    public static MsgType Read(byte[] data, out string text, out TransformDTO transform)
+    public static MsgType Read(byte[] data, out string text, out TransformDTO transform, out ShootDTO shoot, out ScoreDTO score)
     {
         text = null;
         transform = new TransformDTO();
+        shoot = new ShootDTO();
+        score = new ScoreDTO();
         if (data == null || data.Length < 1) throw new InvalidDataException("empty message");
 
         MsgType type = (MsgType)data[0];
@@ -48,6 +62,14 @@ public static class Messages
 
             case MsgType.Transform:
                 transform = Serializer.DeserializeTransformDTO(body);
+                break;
+
+            case MsgType.Shoot:
+                shoot = Serializer.DeserializeShootDTO(body);
+                break;
+
+            case MsgType.Score:
+                score = Serializer.DeserializeScoreDTO(body);
                 break;
 
             default:
