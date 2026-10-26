@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 // Each PC moves its own player and sends its state (position and rotation) to the others.
 // The other players just copy the last state that arrived for them.
+// Shots: everybody sees the bullets, but only the host decides who was hit and keeps the score.
 public class NetworkGame : MonoBehaviour
 {
     public float moveSpeed = 6f;
@@ -15,12 +17,25 @@ public class NetworkGame : MonoBehaviour
     public float sendInterval = 0.05f;   // 20 messages a second, not every frame
     public float smoothing = 15f;
 
+    public float shootCooldown = 0.4f;
+    public float bulletSpeed = 15f;
+    public float bulletLifetime = 2f;
+    public float hitRadius = 0.7f;
+    public int pointsToWin = 3;
+    public float restartDelay = 4f;
+    public float scoreInterval = 0.5f;
+
     public GameObject playerPrefab;
+    public GameObject bulletPrefab;
     public GameObject nameLabelPrefab;
     public Transform nameLabelParent;    // inside the Canvas, so the names are drawn under the panels
     public Material[] playerMaterials;   // one color per player id
 
+    public TMP_Text goalText;
+    public TMP_Text scoreText;
     public TMP_Text leaveButtonText;
+    public GameObject winPanel;
+    public TMP_Text winText;
 
     const float GroundY = 1f;   // the capsule is 2 units tall and its pivot is in the middle
 
@@ -35,6 +50,14 @@ public class NetworkGame : MonoBehaviour
         new Vector2(0f, -7f), new Vector2(0f, 7f), new Vector2(-7f, 0f), new Vector2(7f, 0f),
     };
 
+    class Bullet
+    {
+        public Transform transform;
+        public Vector3 direction;
+        public int ownerId;
+        public float timeLeft;
+    }
+
     LobbyUDPServer m_server;
     LobbyUDPClient m_client;
     List<string> m_names;
@@ -44,8 +67,18 @@ public class NetworkGame : MonoBehaviour
     readonly Dictionary<int, Transform> m_labels = new Dictionary<int, Transform>();
     readonly Dictionary<int, Vector3> m_targetPositions = new Dictionary<int, Vector3>();
     readonly Dictionary<int, float> m_targetRotations = new Dictionary<int, float>();
+    readonly List<Bullet> m_bullets = new List<Bullet>();
     float m_verticalSpeed;
     float m_sendTimer;
+    float m_nextShot;
+
+    ScoreDTO m_score;
+    int m_round;
+    int m_myDeaths;
+
+    readonly Dictionary<int, float> m_lastShot = new Dictionary<int, float>();
+    float m_restartTime;
+    float m_scoreTimer;
 
     void Start()
     {
@@ -70,9 +103,20 @@ public class NetworkGame : MonoBehaviour
             return;
         }
 
-        for (int id = 0; id < m_names.Count; id++) SpawnPlayer(id);
+        m_score = new ScoreDTO();
+        m_score.winnerId = -1;
+        m_score.points = new List<int>();
+        m_score.deaths = new List<int>();
+        for (int id = 0; id < m_names.Count; id++)
+        {
+            m_score.points.Add(0);
+            m_score.deaths.Add(0);
+            SpawnPlayer(id);
+        }
 
+        goalText.text = "First to " + pointsToWin + " points wins";
         leaveButtonText.text = m_server != null ? "End game" : "Leave";
+        UpdateHud();
     }
 
     Vector3 SpawnPosition(int id)
@@ -109,8 +153,17 @@ public class NetworkGame : MonoBehaviour
 
         FitCamera();
 
-        if (m_players.ContainsKey(m_localId)) MoveLocalPlayer();
+        bool playing = m_score.winnerId < 0;
+        if (playing && m_players.ContainsKey(m_localId))
+        {
+            MoveLocalPlayer();
+            TryShoot();
+        }
         MoveRemotePlayers();
+        MoveBullets();
+
+        if (m_server != null) UpdateHostScore();
+        UpdateHud();
 
         m_sendTimer += Time.deltaTime;
         if (m_sendTimer >= sendInterval)
@@ -167,6 +220,35 @@ public class NetworkGame : MonoBehaviour
         player.position = position;
     }
 
+    void TryShoot()
+    {
+        Keyboard keyboard = Keyboard.current;
+        Mouse mouse = Mouse.current;
+        bool overButton = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        bool pressed = (keyboard != null && keyboard.fKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame && !overButton);
+        if (!pressed || Time.time < m_nextShot) return;
+        m_nextShot = Time.time + shootCooldown;
+
+        Transform player = m_players[m_localId];
+        ShootDTO dto = new ShootDTO();
+        dto.playerId = m_localId;
+        dto.x = player.position.x;
+        dto.y = player.position.y;
+        dto.z = player.position.z;
+        dto.dirX = player.forward.x;
+        dto.dirZ = player.forward.z;
+
+        if (m_server != null)
+        {
+            if (OnShootReceived(dto)) m_server.SendShoot(dto);
+        }
+        else
+        {
+            SpawnBullet(dto);
+            m_client.SendShoot(dto);
+        }
+    }
+
     // We only get 20 positions a second, so we move towards the last one instead of teleporting.
     // A big jump means the player went back to its spawn, then we teleport too
     void MoveRemotePlayers()
@@ -205,6 +287,150 @@ public class NetworkGame : MonoBehaviour
         m_targetRotations[dto.objectId] = dto.rotationY;
     }
 
+    // Returns false if the shot is not valid. Only the host checks the cooldown,
+    // so a modified client cannot shoot faster than the others
+    public bool OnShootReceived(ShootDTO dto)
+    {
+        if (!m_players.ContainsKey(dto.playerId) || m_score.winnerId >= 0) return false;
+
+        if (m_server != null)
+        {
+            if (m_lastShot.ContainsKey(dto.playerId) && Time.time - m_lastShot[dto.playerId] < shootCooldown * 0.8f) return false;
+            m_lastShot[dto.playerId] = Time.time;
+        }
+
+        SpawnBullet(dto);
+        return true;
+    }
+
+    void SpawnBullet(ShootDTO dto)
+    {
+        Vector3 direction = new Vector3(dto.dirX, 0f, dto.dirZ).normalized;
+
+        Vector3 position = new Vector3(dto.x, dto.y + 0.3f, dto.z) + direction * 0.6f;
+        GameObject bullet = Instantiate(bulletPrefab, position, Quaternion.identity);
+        bullet.GetComponent<Renderer>().sharedMaterial = playerMaterials[dto.playerId % playerMaterials.Length];
+
+        Bullet b = new Bullet();
+        b.transform = bullet.transform;
+        b.direction = direction;
+        b.ownerId = dto.playerId;
+        b.timeLeft = bulletLifetime;
+        m_bullets.Add(b);
+    }
+
+    // Every PC moves the bullets so they can be seen, but only the host counts the hits
+    void MoveBullets()
+    {
+        for (int i = m_bullets.Count - 1; i >= 0; i--)
+        {
+            Bullet b = m_bullets[i];
+            b.transform.position += b.direction * bulletSpeed * Time.deltaTime;
+            b.timeLeft -= Time.deltaTime;
+
+            int hitId = HitPlayer(b);
+            if (hitId >= 0 && m_server != null) OnHit(b.ownerId, hitId);
+
+            Vector3 p = b.transform.position;
+            bool outside = Mathf.Abs(p.x) > arenaSize + 1f || Mathf.Abs(p.z) > arenaSize + 1f;
+            if (hitId >= 0 || outside || b.timeLeft <= 0f)
+            {
+                Destroy(b.transform.gameObject);
+                m_bullets.RemoveAt(i);
+            }
+        }
+    }
+
+    int HitPlayer(Bullet b)
+    {
+        foreach (KeyValuePair<int, Transform> player in m_players)
+        {
+            if (player.Key == b.ownerId) continue;
+
+            Vector3 offset = b.transform.position - player.Value.position;
+            if (Mathf.Abs(offset.y) > 1.2f) continue;
+            offset.y = 0f;
+            if (offset.magnitude < hitRadius) return player.Key;
+        }
+        return -1;
+    }
+
+    void ClearBullets()
+    {
+        foreach (Bullet b in m_bullets) Destroy(b.transform.gameObject);
+        m_bullets.Clear();
+    }
+
+    void OnHit(int shooterId, int targetId)
+    {
+        m_score.points[shooterId]++;
+        m_score.deaths[targetId]++;
+        Debug.Log("[GAME] " + m_names[shooterId] + " hit " + m_names[targetId] + ", " + m_score.points[shooterId] + " points");
+
+        if (m_score.points[shooterId] >= pointsToWin)
+        {
+            m_score.winnerId = shooterId;
+            m_restartTime = Time.time + restartDelay;
+            Debug.Log("[GAME] " + m_names[shooterId] + " wins");
+        }
+        SendScore();
+    }
+
+    // Host only. After a win, wait restartDelay seconds and start a new round with everything at 0
+    void UpdateHostScore()
+    {
+        if (m_score.winnerId >= 0 && Time.time >= m_restartTime)
+        {
+            m_score.round++;
+            m_score.winnerId = -1;
+            for (int i = 0; i < m_score.points.Count; i++)
+            {
+                m_score.points[i] = 0;
+                m_score.deaths[i] = 0;
+            }
+            Debug.Log("[GAME] New round " + m_score.round);
+            SendScore();
+        }
+
+        m_scoreTimer += Time.deltaTime;
+        if (m_scoreTimer >= scoreInterval) SendScore();
+    }
+
+    void SendScore()
+    {
+        m_scoreTimer = 0f;
+        OnScoreReceived(m_score);
+        m_server.SendScore(m_score);
+    }
+
+    // A new round or more deaths than before: our player goes back to its spawn.
+    // It works even if some Score messages were lost, because each one has the whole score
+    public void OnScoreReceived(ScoreDTO score)
+    {
+        if (score.round != m_round)
+        {
+            m_round = score.round;
+            m_myDeaths = 0;
+            Respawn();
+            ClearBullets();
+        }
+        else if (m_localId < score.deaths.Count && score.deaths[m_localId] > m_myDeaths)
+        {
+            m_myDeaths = score.deaths[m_localId];
+            Respawn();
+        }
+        m_score = score;
+    }
+
+    void Respawn()
+    {
+        if (!m_players.ContainsKey(m_localId)) return;
+
+        m_players[m_localId].position = SpawnPosition(m_localId);
+        m_players[m_localId].rotation = SpawnRotation(m_localId);
+        m_verticalSpeed = 0f;
+    }
+
     public void RemovePlayer(int id)
     {
         if (!m_players.ContainsKey(id)) return;
@@ -232,6 +458,16 @@ public class NetworkGame : MonoBehaviour
 
         float halfWidth = Mathf.Tan(RefFov * 0.5f * Mathf.Deg2Rad) * RefAspect;
         cam.fieldOfView = 2f * Mathf.Atan(halfWidth / aspect) * Mathf.Rad2Deg;
+    }
+
+    void UpdateHud()
+    {
+        string score = "Round " + (m_score.round + 1) + "      ";
+        foreach (int id in m_players.Keys) score += m_names[id] + ": " + m_score.points[id] + "    ";
+        scoreText.text = score;
+
+        winPanel.SetActive(m_score.winnerId >= 0);
+        if (m_score.winnerId >= 0) winText.text = m_names[m_score.winnerId] + " wins!";
     }
 
     public void OnLeaveButton()

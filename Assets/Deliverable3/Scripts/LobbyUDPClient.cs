@@ -127,6 +127,11 @@ public class LobbyUDPClient : MonoBehaviour
         SendPacket(Messages.Transform(dto));
     }
 
+    public void SendShoot(ShootDTO dto)
+    {
+        SendPacket(Messages.Shoot(dto));
+    }
+
     void ReceiveLoop()
     {
         byte[] buffer = new byte[MaxPacketSize];
@@ -283,8 +288,10 @@ public class LobbyUDPClient : MonoBehaviour
 
         string text;
         TransformDTO dto;
+        ShootDTO shoot;
+        ScoreDTO score;
         MsgType msgType;
-        try { msgType = Messages.Read(data, out text, out dto); }
+        try { msgType = Messages.Read(data, out text, out dto, out shoot, out score); }
         catch (Exception e)
         {
             Log("[CLIENT] Bad message: " + e.Message);
@@ -296,7 +303,16 @@ public class LobbyUDPClient : MonoBehaviour
             if (game != null) game.OnTransformReceived(dto);
             return;
         }
-        if (msgType != MsgType.Text) return;
+        if (msgType == MsgType.Shoot)
+        {
+            if (game != null) game.OnShootReceived(shoot);
+            return;
+        }
+        if (msgType == MsgType.Score)
+        {
+            if (game != null) game.OnScoreReceived(score);
+            return;
+        }
 
         Log("[CLIENT] Received: " + text);
 
