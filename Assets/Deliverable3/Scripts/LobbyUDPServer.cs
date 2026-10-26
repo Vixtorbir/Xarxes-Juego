@@ -37,6 +37,12 @@ public class LobbyUDPServer : MonoBehaviour
     readonly List<string> m_chat = new List<string>();
     volatile bool m_running;
 
+    // Filled when the host presses Start. The id of each player is its index in gameNames (the host is 0)
+    public List<string> gameNames = new List<string>();
+    readonly Dictionary<EndPoint, int> m_gameIds = new Dictionary<EndPoint, int>();
+    readonly List<EndPoint> m_waitingStart = new List<EndPoint>();
+    bool m_inGame;
+
     public bool IsRunning { get { return m_running; } }
 
     void Start()
@@ -278,7 +284,7 @@ public class LobbyUDPServer : MonoBehaviour
 
         if (type == "JOIN")
         {
-            if (m_players.ContainsKey(from)) return;
+            if (m_players.ContainsKey(from) || m_inGame) return;
             if (content == "") content = "Player";
 
             m_players.Add(from, content);
@@ -292,7 +298,7 @@ public class LobbyUDPServer : MonoBehaviour
         if (!m_players.ContainsKey(from)) return;
         m_lastMessage[from] = Time.time;
 
-        if (type == "CHAT")
+        if (type == "CHAT" && !m_inGame)
         {
             string line = m_players[from] + ": " + content;
             AddChatLine(line);
@@ -308,6 +314,16 @@ public class LobbyUDPServer : MonoBehaviour
     {
         if (!m_players.ContainsKey(endPoint)) return;
 
+        // In the game the lobby UI does not exist anymore
+        if (m_inGame)
+        {
+            m_players.Remove(endPoint);
+            m_lastMessage.Remove(endPoint);
+            m_gameIds.Remove(endPoint);
+            m_waitingStart.Remove(endPoint);
+            return;
+        }
+
         AddChatLine(m_players[endPoint] + " left");
         m_players.Remove(endPoint);
         m_lastMessage.Remove(endPoint);
@@ -321,5 +337,39 @@ public class LobbyUDPServer : MonoBehaviour
 
         SendToAll("PLAYERS:" + list);
         UpdatePlayersText();
+    }
+
+    public void OnStartButton()
+    {
+        if (!m_running || m_inGame) return;
+        if (m_players.Count == 0)
+        {
+            AddChatLine("* At least one player has to join first");
+            return;
+        }
+
+        m_inGame = true;
+        gameNames.Add(hostName);
+        foreach (KeyValuePair<EndPoint, string> player in m_players)
+        {
+            m_gameIds[player.Key] = gameNames.Count;
+            gameNames.Add(player.Value);
+            m_waitingStart.Add(player.Key);
+        }
+        Log("[SERVER] Game started with " + string.Join(", ", gameNames));
+
+        InvokeRepeating("SendStart", 0f, 1f);
+
+        // This object goes on to the game scene, so the game uses the same socket as the lobby
+        DontDestroyOnLoad(gameObject);
+        SceneManager.LoadScene("S_Game");
+    }
+
+    // START:<yourId>:<name0>,<name1>,...
+    // UDP can lose it, so we repeat it every second. The client only uses the first one
+    void SendStart()
+    {
+        string names = string.Join(",", gameNames);
+        foreach (EndPoint e in m_waitingStart) SendString("START:" + m_gameIds[e] + ":" + names, e);
     }
 }

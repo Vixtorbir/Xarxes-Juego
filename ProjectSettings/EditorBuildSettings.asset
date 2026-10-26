@@ -20,5 +20,8 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Deliverable3/Scenes/S_UDP_Join.unity
     guid: 4d2cfc52803671141896a9052139f29a
+  - enabled: 1
+    path: Assets/Deliverable3/Scenes/S_Game.unity
+    guid: f88c0c2c0ed4d33499818c4f267f484f
   m_configObjects: {}
   m_UseUCBPForAssetBundles: 0

@@ -35,6 +35,11 @@ public class LobbyUDPClient : MonoBehaviour
     readonly List<string> m_chat = new List<string>();
     volatile bool m_running;
 
+    // Filled by the START message of the server
+    public List<string> gameNames = new List<string>();
+    public int localId;
+    bool m_inGame;
+
     public bool IsRunning { get { return m_running; } }
 
     void Start()
@@ -256,6 +261,8 @@ public class LobbyUDPClient : MonoBehaviour
 
         if (data == null)
         {
+            if (m_inGame) { QuitGame(); return; }
+
             Disconnect();
             ShowJoinPanel("Disconnected from " + serverIp);
             return;
@@ -281,13 +288,41 @@ public class LobbyUDPClient : MonoBehaviour
         string type = text.Substring(0, separator);
         string content = text.Substring(separator + 1);
 
-        if (type == "PLAYERS")
+        if (type == "PLAYERS" && !m_inGame)
         {
             playersText.text = content.Replace(",", "\n");
         }
-        else if (type == "CHAT")
+        else if (type == "CHAT" && !m_inGame)
         {
             AddChatLine(content);
         }
+        else if (type == "START")
+        {
+            StartGame(content);
+        }
+    }
+
+    // START:<myId>:<name0>,<name1>,... The server repeats it, so only the first one counts
+    void StartGame(string content)
+    {
+        if (m_inGame) return;
+
+        int separator = content.IndexOf(':');
+        localId = int.Parse(content.Substring(0, separator));
+        gameNames.AddRange(content.Substring(separator + 1).Split(','));
+        m_inGame = true;
+        Log("[CLIENT] Game started, my player is " + localId);
+
+        // This object goes on to the game scene, so the game uses the same socket as the lobby
+        DontDestroyOnLoad(gameObject);
+        SceneManager.LoadScene("S_Game");
+    }
+
+    void QuitGame()
+    {
+        m_inGame = false;
+        Disconnect();
+        Destroy(gameObject);
+        SceneManager.LoadScene("S_Menu");
     }
 }
