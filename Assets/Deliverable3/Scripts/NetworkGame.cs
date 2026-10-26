@@ -130,4 +130,14 @@ public class NetworkGame : MonoBehaviour
 
         m_client.SendTransform(dto);
     }
+
+    // Called from the Update of the server, so we are on the main thread
+    public void OnTransformReceived(TransformDTO dto)
+    {
+        if (dto.objectId == m_localId || !m_players.ContainsKey(dto.objectId)) return;
+
+        Transform player = m_players[dto.objectId];
+        player.position = new Vector3(dto.x, dto.y, dto.z);
+        player.rotation = Quaternion.Euler(0f, dto.rotationY, 0f);
+    }
 }
