@@ -32,12 +32,9 @@ public class LobbyTCPServer : MonoBehaviour
     readonly List<Socket> m_clients = new List<Socket>();
     readonly List<Thread> m_threads = new List<Thread>();
     readonly ConcurrentQueue<Packet> m_inbox = new ConcurrentQueue<Packet>();
-    readonly List<string> m_log = new List<string>();
     readonly Dictionary<Socket, string> m_players = new Dictionary<Socket, string>();
     readonly List<string> m_chat = new List<string>();
     volatile bool m_running;
-
-    public bool IsRunning { get { return m_running; } }
 
     void Start()
     {
@@ -198,7 +195,6 @@ public class LobbyTCPServer : MonoBehaviour
     public void Log(string message)
     {
         Debug.Log(message);
-        lock (m_log) { m_log.Add(message); if (m_log.Count > 100) m_log.RemoveAt(0); }
     }
 
     void ParseCommandLine()
@@ -216,7 +212,7 @@ public class LobbyTCPServer : MonoBehaviour
     {
         if (m_running) return;
 
-        hostName = nameInput.text;
+        hostName = nameInput.text.Replace(",", "");
         if (hostName == "") hostName = "Host";
 
         infoText.text = "TCP server   port " + port + "   host " + hostName;
@@ -302,6 +298,9 @@ public class LobbyTCPServer : MonoBehaviour
         if (type == "JOIN")
         {
             if (m_players.ContainsKey(from)) return;
+
+            // PLAYERS separates the names with commas
+            content = content.Replace(",", "");
             if (content == "") content = "Player";
 
             m_players.Add(from, content);

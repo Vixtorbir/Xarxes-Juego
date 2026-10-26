@@ -33,7 +33,6 @@ public class LobbyUDPServer : MonoBehaviour
     readonly Dictionary<EndPoint, float> m_lastMessage = new Dictionary<EndPoint, float>();
     readonly List<Thread> m_threads = new List<Thread>();
     readonly ConcurrentQueue<Packet> m_inbox = new ConcurrentQueue<Packet>();
-    readonly List<string> m_log = new List<string>();
     readonly List<string> m_chat = new List<string>();
     volatile bool m_running;
 
@@ -43,8 +42,6 @@ public class LobbyUDPServer : MonoBehaviour
     readonly Dictionary<EndPoint, int> m_gameIds = new Dictionary<EndPoint, int>();
     readonly List<EndPoint> m_waitingStart = new List<EndPoint>();
     bool m_inGame;
-
-    public bool IsRunning { get { return m_running; } }
 
     void Start()
     {
@@ -163,7 +160,6 @@ public class LobbyUDPServer : MonoBehaviour
     public void Log(string message)
     {
         Debug.Log(message);
-        lock (m_log) { m_log.Add(message); if (m_log.Count > 100) m_log.RemoveAt(0); }
     }
 
     void ParseCommandLine()
@@ -181,7 +177,7 @@ public class LobbyUDPServer : MonoBehaviour
     {
         if (m_running) return;
 
-        hostName = nameInput.text;
+        hostName = nameInput.text.Replace(",", "");
         if (hostName == "") hostName = "Host";
 
         infoText.text = "UDP server   port " + port + "   host " + hostName;
@@ -298,6 +294,9 @@ public class LobbyUDPServer : MonoBehaviour
         if (type == "JOIN")
         {
             if (m_players.ContainsKey(from) || m_inGame) return;
+
+            // PLAYERS and START separate the names with commas
+            content = content.Replace(",", "");
             if (content == "") content = "Player";
 
             m_players.Add(from, content);

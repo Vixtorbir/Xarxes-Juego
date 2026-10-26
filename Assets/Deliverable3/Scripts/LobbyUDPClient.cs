@@ -32,7 +32,6 @@ public class LobbyUDPClient : MonoBehaviour
     EndPoint m_serverEndPoint;
     readonly List<Thread> m_threads = new List<Thread>();
     readonly ConcurrentQueue<byte[]> m_inbox = new ConcurrentQueue<byte[]>();
-    readonly List<string> m_log = new List<string>();
     readonly List<string> m_chat = new List<string>();
     volatile bool m_running;
 
@@ -42,8 +41,6 @@ public class LobbyUDPClient : MonoBehaviour
     public NetworkGame game;
     bool m_inGame;
     float m_lastReceived;
-
-    public bool IsRunning { get { return m_running; } }
 
     void Start()
     {
@@ -174,7 +171,6 @@ public class LobbyUDPClient : MonoBehaviour
     public void Log(string message)
     {
         Debug.Log(message);
-        lock (m_log) { m_log.Add(message); if (m_log.Count > 100) m_log.RemoveAt(0); }
     }
 
     void ParseCommandLine()
@@ -192,7 +188,7 @@ public class LobbyUDPClient : MonoBehaviour
     {
         if (m_running) return;
 
-        userName = nameInput.text;
+        userName = nameInput.text.Replace(",", "");
         serverIp = ipInput.text;
         if (userName == "") userName = "Player";
 

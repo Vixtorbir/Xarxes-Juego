@@ -1,14 +1,14 @@
-# XJO - Deliverable 3
+# XJO - Project Deliverable: first iteration
 
 Multiplayer arena game made for Xarxes per a Jocs Online. It starts from our Deliverable 2 lobby and the Lab 3 Serializer: the host presses Start, everybody goes to the game scene, and the players move, jump and shoot each other over UDP.
 
 **Group:** Víctor Cárdenas Hormigo, Marc Amo Mateu, Noa Pont, Pau González
 
-**Unity version:** 6000.2.9f1
+**Unity version:** 6000.3.16f1
 
 ## How to run it
 
-1. Download `XJO_Deliverable3_Windows.zip` from the GitHub Release, unzip it and run `XJO_Deliverable3.exe`. Unity is not needed.
+1. Download `ProjectDeliverable_FirstIteration_Windows.zip` from the GitHub Release, unzip it and run `ProjectDeliverable_FirstIteration.exe`. Unity is not needed.
 2. **Host:** in the menu, under **UDP**, press **Create game**, write a name and press **Create**. Look up your IP with `ipconfig` and tell it to the other players.
 3. **Other players:** under **UDP**, press **Join game**, write a name and the host's IP, and press **Join**.
 4. When at least one player is in the room, the host presses **Start** and everybody goes to the game.
@@ -18,6 +18,18 @@ To test on one PC, open the exe several times and join with `127.0.0.1`. The fir
 **Controls:** WASD / Arrow keys to move, Space to jump, F / Left click to shoot. The first player to reach 3 points wins the round, and a new round starts 4 seconds later. The host's **End game** button closes the game for everybody, and a client's **Leave** button takes only that player out.
 
 The TCP column of the menu is the Deliverable 2 lobby and chat, kept as it was. The game itself only runs over UDP.
+
+## Opening it in Unity
+
+Open the repository folder with Unity 6000.3.16f1, or import `ProjectDeliverable_FirstIteration.unitypackage` into another project:
+
+1. Create a new project in Unity Hub with the **Universal 3D** template. A **Built-in Render Pipeline** project works too.
+2. Check that the project has the **uGUI** (`com.unity.ugui`) and **Input System** (`com.unity.inputsystem`) packages. The Unity Hub templates already include both. In a completely empty project, add them from the Package Manager, and press **Yes** when Unity asks to enable the new Input System.
+3. **Assets > Import Package > Custom Package**, and import everything. The TextMesh Pro essentials are included.
+4. In **File > Build Profiles**, add the six scenes of `Assets/Deliverable3/Scenes` to the scene list, with `S_Menu` first. The game loads its scenes by name, so they have to be in the list, even to play in the Editor.
+5. Open `S_Menu` and press Play.
+
+The materials use our own small shader, `Deliverable3/SimpleLit`, so the game looks the same in URP and in the Built-in Render Pipeline.
 
 ## Scenes
 
@@ -85,7 +97,6 @@ UDP can lose messages, so the important ones are sent in a way that losing one d
 
 ## Known bugs
 
-- **Names with a comma or a colon break the player list.** `PLAYERS:` and `START:` separate the names with commas. A name like `Pau,G` shows up as two players in the list and adds an extra player that nobody controls in the clients' game.
 - **Repeated names are not checked.** Two players can use the same name.
 - **A second host on the same PC fails silently.** Port 9050 is already in use. The error only shows in the console, and the second room looks open but never receives anything.
 - **A lost UDP host is only noticed in the game.** In the lobby the host does not send anything regularly, so if it closes on another PC the client stays in the room. The same happens if the IP is right but nobody is hosting. The client has to press Leave.
@@ -102,7 +113,8 @@ UDP can lose messages, so the important ones are sent in a way that losing one d
 - Once the game has started, the host ignores new `JOIN` and `CHAT` messages, and a player that leaves is announced with `LEFT:<id>`.
 - A message that cannot be read is dropped instead of breaking the lobby.
 - The client now notices a lost host in the game (5 second timeout), which was a known bug in Deliverable 2.
-- The TCP lobby is the same as in Deliverable 2.
+- Commas are removed from the player names, in TCP and UDP. The player list is separated by commas, so a name with a comma used to show up as two players, another known bug of Deliverable 2.
+- Apart from the names, the TCP lobby is the same as in Deliverable 2.
 - The project was moved to a new repository, with the code in `Assets/Deliverable3`.
 
 ## Who did what
