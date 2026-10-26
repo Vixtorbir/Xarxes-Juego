@@ -427,6 +427,12 @@ public class LobbyUDPServer : MonoBehaviour
         foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
     }
 
+    public void SendScore(ScoreDTO dto)
+    {
+        byte[] data = Messages.Score(dto);
+        foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
+    }
+
     public void EndGame()
     {
         SendToAll("END:");

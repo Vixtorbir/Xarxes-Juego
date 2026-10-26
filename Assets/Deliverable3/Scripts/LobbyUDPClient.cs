@@ -308,7 +308,11 @@ public class LobbyUDPClient : MonoBehaviour
             if (game != null) game.OnShootReceived(shoot);
             return;
         }
-        if (msgType != MsgType.Text) return;
+        if (msgType == MsgType.Score)
+        {
+            if (game != null) game.OnScoreReceived(score);
+            return;
+        }
 
         Log("[CLIENT] Received: " + text);
 
