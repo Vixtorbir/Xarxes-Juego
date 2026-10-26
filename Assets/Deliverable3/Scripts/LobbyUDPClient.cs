@@ -311,6 +311,10 @@ public class LobbyUDPClient : MonoBehaviour
         {
             StartGame(content);
         }
+        else if (type == "END")
+        {
+            QuitGame();
+        }
     }
 
     // START:<myId>:<name0>,<name1>,... The server repeats it, so only the first one counts
@@ -327,6 +331,12 @@ public class LobbyUDPClient : MonoBehaviour
         // This object goes on to the game scene, so the game uses the same socket as the lobby
         DontDestroyOnLoad(gameObject);
         SceneManager.LoadScene("S_Game");
+    }
+
+    public void LeaveGame()
+    {
+        SendString("LEAVE:");
+        QuitGame();
     }
 
     void QuitGame()

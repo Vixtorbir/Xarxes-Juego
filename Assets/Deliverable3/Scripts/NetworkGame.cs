@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
@@ -15,9 +16,17 @@ public class NetworkGame : MonoBehaviour
     public float smoothing = 15f;
 
     public GameObject playerPrefab;
+    public GameObject nameLabelPrefab;
+    public Transform nameLabelParent;    // inside the Canvas, so the names are drawn under the panels
     public Material[] playerMaterials;   // one color per player id
 
+    public TMP_Text leaveButtonText;
+
     const float GroundY = 1f;   // the capsule is 2 units tall and its pivot is in the middle
+
+    // The camera is set for 16:9 with 60 degrees. The Canvas scales the same way (1280x720, Expand)
+    const float RefAspect = 16f / 9f;
+    const float RefFov = 60f;
 
     // First the 4 corners, then the middle of each side
     static readonly Vector2[] Spawns =
@@ -32,6 +41,7 @@ public class NetworkGame : MonoBehaviour
     int m_localId;
 
     readonly Dictionary<int, Transform> m_players = new Dictionary<int, Transform>();
+    readonly Dictionary<int, Transform> m_labels = new Dictionary<int, Transform>();
     readonly Dictionary<int, Vector3> m_targetPositions = new Dictionary<int, Vector3>();
     readonly Dictionary<int, float> m_targetRotations = new Dictionary<int, float>();
     float m_verticalSpeed;
@@ -61,6 +71,8 @@ public class NetworkGame : MonoBehaviour
         }
 
         for (int id = 0; id < m_names.Count; id++) SpawnPlayer(id);
+
+        leaveButtonText.text = m_server != null ? "End game" : "Leave";
     }
 
     Vector3 SpawnPosition(int id)
@@ -81,12 +93,21 @@ public class NetworkGame : MonoBehaviour
         GameObject player = Instantiate(playerPrefab, SpawnPosition(id), SpawnRotation(id));
         player.name = "Player " + id + " " + m_names[id];
         player.GetComponent<Renderer>().sharedMaterial = playerMaterials[id % playerMaterials.Length];
+
+        GameObject label = Instantiate(nameLabelPrefab, nameLabelParent);
+        TMP_Text labelText = label.GetComponentInChildren<TMP_Text>();
+        labelText.text = m_names[id];
+        if (id == m_localId) labelText.text += " (you)";
+
         m_players[id] = player.transform;
+        m_labels[id] = label.transform;
     }
 
     void Update()
     {
         if (m_names == null) return;
+
+        FitCamera();
 
         if (m_players.ContainsKey(m_localId)) MoveLocalPlayer();
         MoveRemotePlayers();
@@ -96,6 +117,17 @@ public class NetworkGame : MonoBehaviour
         {
             m_sendTimer = 0f;
             SendLocalPlayer();
+        }
+    }
+
+    // Each name goes on the screen just above the head of its player
+    void LateUpdate()
+    {
+        foreach (int id in m_labels.Keys)
+        {
+            Vector3 screen = Camera.main.WorldToScreenPoint(m_players[id].position + Vector3.up * 1.4f);
+            m_labels[id].gameObject.SetActive(screen.z > 0f);
+            m_labels[id].position = new Vector3(screen.x, screen.y, 0f);
         }
     }
 
@@ -171,5 +203,28 @@ public class NetworkGame : MonoBehaviour
 
         m_targetPositions[dto.objectId] = new Vector3(dto.x, dto.y, dto.z);
         m_targetRotations[dto.objectId] = dto.rotationY;
+    }
+
+    // If the window is narrower than 16:9 we open the vertical angle, so the sides of the arena
+    // are never cut. If it is wider we keep 60 degrees and just see a bit more on the sides
+    void FitCamera()
+    {
+        Camera cam = Camera.main;
+        float aspect = (float)Screen.width / Screen.height;
+
+        if (aspect >= RefAspect)
+        {
+            cam.fieldOfView = RefFov;
+            return;
+        }
+
+        float halfWidth = Mathf.Tan(RefFov * 0.5f * Mathf.Deg2Rad) * RefAspect;
+        cam.fieldOfView = 2f * Mathf.Atan(halfWidth / aspect) * Mathf.Rad2Deg;
+    }
+
+    public void OnLeaveButton()
+    {
+        if (m_server != null) m_server.EndGame();
+        else m_client.LeaveGame();
     }
 }

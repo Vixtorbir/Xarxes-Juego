@@ -398,4 +398,12 @@ public class LobbyUDPServer : MonoBehaviour
         byte[] data = Messages.Transform(dto);
         foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
     }
+
+    public void EndGame()
+    {
+        SendToAll("END:");
+        Disconnect();
+        Destroy(gameObject);
+        SceneManager.LoadScene("S_Menu");
+    }
 }
