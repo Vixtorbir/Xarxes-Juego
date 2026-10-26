@@ -38,6 +38,7 @@ public class LobbyUDPClient : MonoBehaviour
     // Filled by the START message of the server
     public List<string> gameNames = new List<string>();
     public int localId;
+    public NetworkGame game;
     bool m_inGame;
 
     public bool IsRunning { get { return m_running; } }
@@ -114,6 +115,11 @@ public class LobbyUDPClient : MonoBehaviour
     public void SendString(string text)
     {
         SendPacket(Messages.Text(text));
+    }
+
+    public void SendTransform(TransformDTO dto)
+    {
+        SendPacket(Messages.Transform(dto));
     }
 
     void ReceiveLoop()

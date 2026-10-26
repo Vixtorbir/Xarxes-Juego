@@ -39,6 +39,7 @@ public class LobbyUDPServer : MonoBehaviour
 
     // Filled when the host presses Start. The id of each player is its index in gameNames (the host is 0)
     public List<string> gameNames = new List<string>();
+    public NetworkGame game;
     readonly Dictionary<EndPoint, int> m_gameIds = new Dictionary<EndPoint, int>();
     readonly List<EndPoint> m_waitingStart = new List<EndPoint>();
     bool m_inGame;
