@@ -22,6 +22,7 @@ public class NetworkGame : MonoBehaviour
     public float bulletLifetime = 2f;
     public float hitRadius = 0.7f;
     public int pointsToWin = 3;
+    public float restartDelay = 4f;
     public float scoreInterval = 0.5f;
 
     public GameObject playerPrefab;
@@ -72,9 +73,11 @@ public class NetworkGame : MonoBehaviour
     float m_nextShot;
 
     ScoreDTO m_score;
+    int m_round;
     int m_myDeaths;
 
     readonly Dictionary<int, float> m_lastShot = new Dictionary<int, float>();
+    float m_restartTime;
     float m_scoreTimer;
 
     void Start()
@@ -352,6 +355,12 @@ public class NetworkGame : MonoBehaviour
         return -1;
     }
 
+    void ClearBullets()
+    {
+        foreach (Bullet b in m_bullets) Destroy(b.transform.gameObject);
+        m_bullets.Clear();
+    }
+
     void OnHit(int shooterId, int targetId)
     {
         m_score.points[shooterId]++;
@@ -361,14 +370,28 @@ public class NetworkGame : MonoBehaviour
         if (m_score.points[shooterId] >= pointsToWin)
         {
             m_score.winnerId = shooterId;
+            m_restartTime = Time.time + restartDelay;
             Debug.Log("[GAME] " + m_names[shooterId] + " wins");
         }
         SendScore();
     }
 
-    // Host only. The score is sent again every scoreInterval seconds, in case one was lost
+    // Host only. After a win, wait restartDelay seconds and start a new round with everything at 0
     void UpdateHostScore()
     {
+        if (m_score.winnerId >= 0 && Time.time >= m_restartTime)
+        {
+            m_score.round++;
+            m_score.winnerId = -1;
+            for (int i = 0; i < m_score.points.Count; i++)
+            {
+                m_score.points[i] = 0;
+                m_score.deaths[i] = 0;
+            }
+            Debug.Log("[GAME] New round " + m_score.round);
+            SendScore();
+        }
+
         m_scoreTimer += Time.deltaTime;
         if (m_scoreTimer >= scoreInterval) SendScore();
     }
@@ -380,11 +403,18 @@ public class NetworkGame : MonoBehaviour
         m_server.SendScore(m_score);
     }
 
-    // More deaths than before: our player goes back to its spawn.
+    // A new round or more deaths than before: our player goes back to its spawn.
     // It works even if some Score messages were lost, because each one has the whole score
     public void OnScoreReceived(ScoreDTO score)
     {
-        if (m_localId < score.deaths.Count && score.deaths[m_localId] > m_myDeaths)
+        if (score.round != m_round)
+        {
+            m_round = score.round;
+            m_myDeaths = 0;
+            Respawn();
+            ClearBullets();
+        }
+        else if (m_localId < score.deaths.Count && score.deaths[m_localId] > m_myDeaths)
         {
             m_myDeaths = score.deaths[m_localId];
             Respawn();
@@ -432,7 +462,7 @@ public class NetworkGame : MonoBehaviour
 
     void UpdateHud()
     {
-        string score = "";
+        string score = "Round " + (m_score.round + 1) + "      ";
         foreach (int id in m_players.Keys) score += m_names[id] + ": " + m_score.points[id] + "    ";
         scoreText.text = score;
 
