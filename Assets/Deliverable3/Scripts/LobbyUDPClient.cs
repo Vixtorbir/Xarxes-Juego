@@ -127,6 +127,11 @@ public class LobbyUDPClient : MonoBehaviour
         SendPacket(Messages.Transform(dto));
     }
 
+    public void SendShoot(ShootDTO dto)
+    {
+        SendPacket(Messages.Shoot(dto));
+    }
+
     void ReceiveLoop()
     {
         byte[] buffer = new byte[MaxPacketSize];
@@ -296,6 +301,11 @@ public class LobbyUDPClient : MonoBehaviour
         if (msgType == MsgType.Transform)
         {
             if (game != null) game.OnTransformReceived(dto);
+            return;
+        }
+        if (msgType == MsgType.Shoot)
+        {
+            if (game != null) game.OnShootReceived(shoot);
             return;
         }
         if (msgType != MsgType.Text) return;

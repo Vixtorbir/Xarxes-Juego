@@ -1,11 +1,13 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 // Each PC moves its own player and sends its state (position and rotation) to the others.
 // The other players just copy the last state that arrived for them.
+// Shots: everybody sees the bullets, and the host checks that each one is valid.
 public class NetworkGame : MonoBehaviour
 {
     public float moveSpeed = 6f;
@@ -15,7 +17,12 @@ public class NetworkGame : MonoBehaviour
     public float sendInterval = 0.05f;   // 20 messages a second, not every frame
     public float smoothing = 15f;
 
+    public float shootCooldown = 0.4f;
+    public float bulletSpeed = 15f;
+    public float bulletLifetime = 2f;
+
     public GameObject playerPrefab;
+    public GameObject bulletPrefab;
     public GameObject nameLabelPrefab;
     public Transform nameLabelParent;    // inside the Canvas, so the names are drawn under the panels
     public Material[] playerMaterials;   // one color per player id
@@ -35,6 +42,14 @@ public class NetworkGame : MonoBehaviour
         new Vector2(0f, -7f), new Vector2(0f, 7f), new Vector2(-7f, 0f), new Vector2(7f, 0f),
     };
 
+    class Bullet
+    {
+        public Transform transform;
+        public Vector3 direction;
+        public int ownerId;
+        public float timeLeft;
+    }
+
     LobbyUDPServer m_server;
     LobbyUDPClient m_client;
     List<string> m_names;
@@ -44,8 +59,12 @@ public class NetworkGame : MonoBehaviour
     readonly Dictionary<int, Transform> m_labels = new Dictionary<int, Transform>();
     readonly Dictionary<int, Vector3> m_targetPositions = new Dictionary<int, Vector3>();
     readonly Dictionary<int, float> m_targetRotations = new Dictionary<int, float>();
+    readonly List<Bullet> m_bullets = new List<Bullet>();
     float m_verticalSpeed;
     float m_sendTimer;
+    float m_nextShot;
+
+    readonly Dictionary<int, float> m_lastShot = new Dictionary<int, float>();
 
     void Start()
     {
@@ -109,8 +128,14 @@ public class NetworkGame : MonoBehaviour
 
         FitCamera();
 
-        if (m_players.ContainsKey(m_localId)) MoveLocalPlayer();
+        if (m_players.ContainsKey(m_localId))
+        {
+            MoveLocalPlayer();
+            TryShoot();
+        }
         MoveRemotePlayers();
+        MoveBullets();
+
 
         m_sendTimer += Time.deltaTime;
         if (m_sendTimer >= sendInterval)
@@ -167,6 +192,35 @@ public class NetworkGame : MonoBehaviour
         player.position = position;
     }
 
+    void TryShoot()
+    {
+        Keyboard keyboard = Keyboard.current;
+        Mouse mouse = Mouse.current;
+        bool overButton = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        bool pressed = (keyboard != null && keyboard.fKey.wasPressedThisFrame) || (mouse != null && mouse.leftButton.wasPressedThisFrame && !overButton);
+        if (!pressed || Time.time < m_nextShot) return;
+        m_nextShot = Time.time + shootCooldown;
+
+        Transform player = m_players[m_localId];
+        ShootDTO dto = new ShootDTO();
+        dto.playerId = m_localId;
+        dto.x = player.position.x;
+        dto.y = player.position.y;
+        dto.z = player.position.z;
+        dto.dirX = player.forward.x;
+        dto.dirZ = player.forward.z;
+
+        if (m_server != null)
+        {
+            if (OnShootReceived(dto)) m_server.SendShoot(dto);
+        }
+        else
+        {
+            SpawnBullet(dto);
+            m_client.SendShoot(dto);
+        }
+    }
+
     // We only get 20 positions a second, so we move towards the last one instead of teleporting.
     // A big jump means the player went back to its spawn, then we teleport too
     void MoveRemotePlayers()
@@ -203,6 +257,57 @@ public class NetworkGame : MonoBehaviour
 
         m_targetPositions[dto.objectId] = new Vector3(dto.x, dto.y, dto.z);
         m_targetRotations[dto.objectId] = dto.rotationY;
+    }
+
+    // Returns false if the shot is not valid. Only the host checks the cooldown,
+    // so a modified client cannot shoot faster than the others
+    public bool OnShootReceived(ShootDTO dto)
+    {
+        if (!m_players.ContainsKey(dto.playerId)) return false;
+
+        if (m_server != null)
+        {
+            if (m_lastShot.ContainsKey(dto.playerId) && Time.time - m_lastShot[dto.playerId] < shootCooldown * 0.8f) return false;
+            m_lastShot[dto.playerId] = Time.time;
+        }
+
+        SpawnBullet(dto);
+        return true;
+    }
+
+    void SpawnBullet(ShootDTO dto)
+    {
+        Vector3 direction = new Vector3(dto.dirX, 0f, dto.dirZ).normalized;
+
+        Vector3 position = new Vector3(dto.x, dto.y + 0.3f, dto.z) + direction * 0.6f;
+        GameObject bullet = Instantiate(bulletPrefab, position, Quaternion.identity);
+        bullet.GetComponent<Renderer>().sharedMaterial = playerMaterials[dto.playerId % playerMaterials.Length];
+
+        Bullet b = new Bullet();
+        b.transform = bullet.transform;
+        b.direction = direction;
+        b.ownerId = dto.playerId;
+        b.timeLeft = bulletLifetime;
+        m_bullets.Add(b);
+    }
+
+    // Every PC moves the bullets, so everybody sees them
+    void MoveBullets()
+    {
+        for (int i = m_bullets.Count - 1; i >= 0; i--)
+        {
+            Bullet b = m_bullets[i];
+            b.transform.position += b.direction * bulletSpeed * Time.deltaTime;
+            b.timeLeft -= Time.deltaTime;
+
+            Vector3 p = b.transform.position;
+            bool outside = Mathf.Abs(p.x) > arenaSize + 1f || Mathf.Abs(p.z) > arenaSize + 1f;
+            if (outside || b.timeLeft <= 0f)
+            {
+                Destroy(b.transform.gameObject);
+                m_bullets.RemoveAt(i);
+            }
+        }
     }
 
     public void RemovePlayer(int id)

@@ -394,7 +394,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: 'WASD / arrows: move     Space: jump'
+  m_text: 'WASD / arrows: move     Space: jump     F / click: shoot'
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
   m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
@@ -1186,7 +1186,11 @@ MonoBehaviour:
   arenaSize: 9
   sendInterval: 0.05
   smoothing: 15
+  shootCooldown: 0.4
+  bulletSpeed: 15
+  bulletLifetime: 2
   playerPrefab: {fileID: 3683319405877980647, guid: 517f6b340807f6343ac64018f2c0d5a8, type: 3}
+  bulletPrefab: {fileID: 4658246869150493232, guid: 914e55c2c363257498803e66e8a28f3b, type: 3}
   nameLabelPrefab: {fileID: 8147318262825112139, guid: 9a8cf753eedf9ae4aafe0bccae5ee212, type: 3}
   nameLabelParent: {fileID: 348942841}
   playerMaterials:

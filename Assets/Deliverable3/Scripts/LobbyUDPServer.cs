@@ -280,6 +280,11 @@ public class LobbyUDPServer : MonoBehaviour
             OnTransformReceived(dto, data, from);
             return;
         }
+        if (msgType == MsgType.Shoot)
+        {
+            OnShootReceived(shoot, data, from);
+            return;
+        }
         if (msgType != MsgType.Text) return;
 
         int separator = text.IndexOf(':');
@@ -401,6 +406,24 @@ public class LobbyUDPServer : MonoBehaviour
     public void SendTransform(TransformDTO dto)
     {
         byte[] data = Messages.Transform(dto);
+        foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
+    }
+
+    // Same check as the Transform. The game decides if the shot is valid (cooldown, round over)
+    void OnShootReceived(ShootDTO dto, byte[] data, EndPoint from)
+    {
+        if (!m_gameIds.ContainsKey(from) || m_gameIds[from] != dto.playerId) return;
+
+        m_lastMessage[from] = Time.time;
+        if (game == null || !game.OnShootReceived(dto)) return;
+
+        foreach (EndPoint e in m_gameIds.Keys)
+            if (!e.Equals(from)) SendPacket(data, e);
+    }
+
+    public void SendShoot(ShootDTO dto)
+    {
+        byte[] data = Messages.Shoot(dto);
         foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
     }
 
