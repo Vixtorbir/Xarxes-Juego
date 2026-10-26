@@ -39,6 +39,7 @@ public class LobbyUDPServer : MonoBehaviour
 
     // Filled when the host presses Start. The id of each player is its index in gameNames (the host is 0)
     public List<string> gameNames = new List<string>();
+    public NetworkGame game;
     readonly Dictionary<EndPoint, int> m_gameIds = new Dictionary<EndPoint, int>();
     readonly List<EndPoint> m_waitingStart = new List<EndPoint>();
     bool m_inGame;
@@ -272,6 +273,11 @@ public class LobbyUDPServer : MonoBehaviour
             return;
         }
 
+        if (msgType == MsgType.Transform)
+        {
+            OnTransformReceived(dto, from);
+            return;
+        }
         if (msgType != MsgType.Text) return;
 
         int separator = text.IndexOf(':');
@@ -366,10 +372,20 @@ public class LobbyUDPServer : MonoBehaviour
     }
 
     // START:<yourId>:<name0>,<name1>,...
-    // UDP can lose it, so we repeat it every second. The client only uses the first one
+    // UDP can lose it, so we repeat it every second until the first Transform of that client arrives
     void SendStart()
     {
         string names = string.Join(",", gameNames);
         foreach (EndPoint e in m_waitingStart) SendString("START:" + m_gameIds[e] + ":" + names, e);
+    }
+
+    // A client can only move its own player: the id it sends has to be the one we gave to its address
+    void OnTransformReceived(TransformDTO dto, EndPoint from)
+    {
+        if (!m_gameIds.ContainsKey(from) || m_gameIds[from] != dto.objectId) return;
+
+        m_lastMessage[from] = Time.time;
+        m_waitingStart.Remove(from);
+        if (game != null) game.OnTransformReceived(dto);
     }
 }
