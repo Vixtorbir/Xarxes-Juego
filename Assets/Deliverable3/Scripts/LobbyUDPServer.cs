@@ -275,7 +275,7 @@ public class LobbyUDPServer : MonoBehaviour
 
         if (msgType == MsgType.Transform)
         {
-            OnTransformReceived(dto, from);
+            OnTransformReceived(dto, data, from);
             return;
         }
         if (msgType != MsgType.Text) return;
@@ -379,13 +379,23 @@ public class LobbyUDPServer : MonoBehaviour
         foreach (EndPoint e in m_waitingStart) SendString("START:" + m_gameIds[e] + ":" + names, e);
     }
 
-    // A client can only move its own player: the id it sends has to be the one we gave to its address
-    void OnTransformReceived(TransformDTO dto, EndPoint from)
+    // A client can only move its own player: the id it sends has to be the one we gave to its address.
+    // Then we send the same bytes to the other clients, so everybody sees everybody
+    void OnTransformReceived(TransformDTO dto, byte[] data, EndPoint from)
     {
         if (!m_gameIds.ContainsKey(from) || m_gameIds[from] != dto.objectId) return;
 
         m_lastMessage[from] = Time.time;
         m_waitingStart.Remove(from);
         if (game != null) game.OnTransformReceived(dto);
+
+        foreach (EndPoint e in m_gameIds.Keys)
+            if (!e.Equals(from)) SendPacket(data, e);
+    }
+
+    public void SendTransform(TransformDTO dto)
+    {
+        byte[] data = Messages.Transform(dto);
+        foreach (EndPoint e in m_gameIds.Keys) SendPacket(data, e);
     }
 }

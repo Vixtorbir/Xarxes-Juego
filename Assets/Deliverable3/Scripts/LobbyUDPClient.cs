@@ -284,6 +284,11 @@ public class LobbyUDPClient : MonoBehaviour
             return;
         }
 
+        if (msgType == MsgType.Transform)
+        {
+            if (game != null) game.OnTransformReceived(dto);
+            return;
+        }
         if (msgType != MsgType.Text) return;
 
         Log("[CLIENT] Received: " + text);

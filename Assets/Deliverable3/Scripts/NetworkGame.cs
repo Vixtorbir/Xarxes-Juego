@@ -3,8 +3,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
-// Each PC moves its own player and the client sends its state (position and rotation) to the host.
-// The host just copies the last state that arrived for each player.
+// Each PC moves its own player and sends its state (position and rotation) to the others.
+// The other players just copy the last state that arrived for them.
 public class NetworkGame : MonoBehaviour
 {
     public float moveSpeed = 6f;
@@ -115,10 +115,9 @@ public class NetworkGame : MonoBehaviour
         player.position = position;
     }
 
-    // The client sends the state of its player to the host
     void SendLocalPlayer()
     {
-        if (m_client == null || !m_players.ContainsKey(m_localId)) return;
+        if (!m_players.ContainsKey(m_localId)) return;
 
         Transform player = m_players[m_localId];
         TransformDTO dto = new TransformDTO();
@@ -128,10 +127,11 @@ public class NetworkGame : MonoBehaviour
         dto.z = player.position.z;
         dto.rotationY = player.eulerAngles.y;
 
-        m_client.SendTransform(dto);
+        if (m_server != null) m_server.SendTransform(dto);
+        else m_client.SendTransform(dto);
     }
 
-    // Called from the Update of the server, so we are on the main thread
+    // Called from the Update of the server or the client, so we are on the main thread
     public void OnTransformReceived(TransformDTO dto)
     {
         if (dto.objectId == m_localId || !m_players.ContainsKey(dto.objectId)) return;
