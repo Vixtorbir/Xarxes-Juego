@@ -320,13 +320,16 @@ public class LobbyUDPServer : MonoBehaviour
     {
         if (!m_players.ContainsKey(endPoint)) return;
 
-        // In the game the lobby UI does not exist anymore
+        // In the game the lobby UI does not exist anymore, so we tell the other players and the game scene
         if (m_inGame)
         {
+            int id = m_gameIds[endPoint];
             m_players.Remove(endPoint);
             m_lastMessage.Remove(endPoint);
             m_gameIds.Remove(endPoint);
             m_waitingStart.Remove(endPoint);
+            SendToAll("LEFT:" + id);
+            if (game != null) game.RemovePlayer(id);
             return;
         }
 

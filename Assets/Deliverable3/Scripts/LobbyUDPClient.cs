@@ -13,6 +13,7 @@ public class LobbyUDPClient : MonoBehaviour
     public string serverIp = "127.0.0.1";
     public int port = 9050;
     public string userName = "Player";
+    public float timeout = 5f;
 
     public GameObject joinPanel;
     public GameObject roomPanel;
@@ -40,6 +41,7 @@ public class LobbyUDPClient : MonoBehaviour
     public int localId;
     public NetworkGame game;
     bool m_inGame;
+    float m_lastReceived;
 
     public bool IsRunning { get { return m_running; } }
 
@@ -83,6 +85,9 @@ public class LobbyUDPClient : MonoBehaviour
         byte[] data;
         while (m_inbox.TryDequeue(out data))
             OnPacketReceived(data);
+
+        // In the game the host sends 20 messages a second, so if nothing arrives for a while it is gone
+        if (m_inGame && Time.time - m_lastReceived > timeout) QuitGame();
     }
 
     void ClientThread()
@@ -274,6 +279,8 @@ public class LobbyUDPClient : MonoBehaviour
             return;
         }
 
+        m_lastReceived = Time.time;
+
         string text;
         TransformDTO dto;
         MsgType msgType;
@@ -310,6 +317,10 @@ public class LobbyUDPClient : MonoBehaviour
         else if (type == "START")
         {
             StartGame(content);
+        }
+        else if (type == "LEFT")
+        {
+            if (game != null) game.RemovePlayer(int.Parse(content));
         }
         else if (type == "END")
         {

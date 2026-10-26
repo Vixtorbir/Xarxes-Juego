@@ -205,6 +205,18 @@ public class NetworkGame : MonoBehaviour
         m_targetRotations[dto.objectId] = dto.rotationY;
     }
 
+    public void RemovePlayer(int id)
+    {
+        if (!m_players.ContainsKey(id)) return;
+
+        Destroy(m_players[id].gameObject);
+        Destroy(m_labels[id].gameObject);
+        m_players.Remove(id);
+        m_labels.Remove(id);
+        m_targetPositions.Remove(id);
+        m_targetRotations.Remove(id);
+    }
+
     // If the window is narrower than 16:9 we open the vertical angle, so the sides of the arena
     // are never cut. If it is wider we keep 60 degrees and just see a bit more on the sides
     void FitCamera()
